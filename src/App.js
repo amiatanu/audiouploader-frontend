@@ -1,26 +1,39 @@
 import React, { useState, useRef } from "react";
 import "./App.css";
+import axios from "axios";
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
-  const [metadata, setMetadata] = useState({});
 
   const currentlyPlayingRef = useRef(null);
 
-  const handleFileUpload = (event) => {
+  const handleFileUpload = async (event) => {
     const newFiles = Array.from(event.target.files);
-    const updatedMetadata = {};
+    setAudioFiles([...audioFiles, ...newFiles]);
 
-    newFiles.forEach((file) => {
-      updatedMetadata[file.name] = {
+    for (const file of newFiles) {
+      const formData = new FormData();
+      //audio file
+      formData.append("audioFile", file);
+      //appending the metadata
+      const metadata = {
+        originalName: file.name,
         type: file.type,
         size: file.size,
       };
-    });
+      formData.append("metadata", JSON.stringify(metadata));
 
-    setAudioFiles([...audioFiles, ...newFiles]);
-    setMetadata({ ...metadata, ...updatedMetadata });
-    console.log(metadata);
+      try {
+        await axios.post("http://localhost:3001/api/upload", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+        console.log("File uploaded successfully.");
+      } catch (error) {
+        console.error("Error uploading file:", error);
+      }
+    }
   };
 
   const handlePlay = (file) => {
