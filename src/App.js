@@ -3,11 +3,24 @@ import "./App.css";
 
 function App() {
   const [audioFiles, setAudioFiles] = useState([]);
+  const [metadata, setMetadata] = useState({});
+
   const currentlyPlayingRef = useRef(null);
 
   const handleFileUpload = (event) => {
     const newFiles = Array.from(event.target.files);
+    const updatedMetadata = {};
+
+    newFiles.forEach((file) => {
+      updatedMetadata[file.name] = {
+        type: file.type,
+        size: file.size,
+      };
+    });
+
     setAudioFiles([...audioFiles, ...newFiles]);
+    setMetadata({ ...metadata, ...updatedMetadata });
+    console.log(metadata);
   };
 
   const handlePlay = (file) => {
