@@ -1,56 +1,97 @@
-import React, { useState, useRef } from "react";
-import "./App.css";
+import { message as msg } from "antd";
 import axios from "axios";
+import React, { useEffect, useState } from "react";
+import "./App.css";
 
 function App() {
+  const audioRef = React.createRef();
   const [audioFiles, setAudioFiles] = useState([]);
+  const [audioFilesUrl, setAudioFilesUrl] = useState([]);
+  const [activeAudioUrl, setActiveAudioUrl] = useState(null);
 
-  const currentlyPlayingRef = useRef(null);
+  const changeAudioHandler = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onloadend = () => {
+        const prevImages = [...audioFilesUrl];
+        if (
+          !prevImages.some(
+            (image) =>
+              image.originalName === file.name &&
+              image.mimeType === file.type &&
+              image.size === file.size
+          )
+        ) {
+          prevImages.push({
+            originalName: file.name,
+            mimeType: file.type,
+            size: file.size,
+            url: reader.result,
+          });
+        } else {
+          alert("Already Uploaded");
+        }
+
+        setAudioFilesUrl(prevImages);
+        setAudioFiles([...audioFiles, file]);
+      };
+    }
+  };
 
   const handleFileUpload = async (event) => {
-    const newFiles = Array.from(event.target.files);
-    setAudioFiles([...audioFiles, ...newFiles]);
+    const formData = new FormData();
+    audioFiles.forEach((item) => {
+      formData.append("file", item);
+    });
 
-    for (const file of newFiles) {
-      const formData = new FormData();
-      //audio file
-      formData.append("audioFile", file);
-      //appending the metadata
-      const metadata = {
-        originalName: file.name,
-        type: file.type,
-        size: file.size,
-      };
-      formData.append("metadata", JSON.stringify(metadata));
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/upload",
+        formData
+      );
 
-      try {
-        await axios.post("http://localhost:3001/api/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
-        console.log("File uploaded successfully.");
-      } catch (error) {
-        console.error("Error uploading file:", error);
+      const { success, message } = response.data;
+
+      if (success) {
+        msg.success(message);
+      } else {
+        msg.error(message);
       }
+    } catch (error) {
+      console.error(error);
     }
   };
 
   const handlePlay = (file) => {
-    if (currentlyPlayingRef.current) {
-      currentlyPlayingRef.current.pause();
+    if (activeAudioUrl === file.url) {
+      audioRef.current.pause();
+      setActiveAudioUrl(null);
+    } else {
+      audioRef.current.src = file.url;
+      audioRef.current.play();
+      setActiveAudioUrl(file.url);
     }
-    const audio = new Audio(URL.createObjectURL(file));
-    audio.play();
-    currentlyPlayingRef.current = audio;
   };
 
   const handleStop = () => {
-    if (currentlyPlayingRef.current) {
-      currentlyPlayingRef.current.pause();
-      currentlyPlayingRef.current.currentTime = 0;
+    audioRef.current.pause();
+    setActiveAudioUrl(null);
+  };
+
+  const getAudios = async () => {
+    try {
+      const response = await axios.get(`http://localhost:5000/api/files`);
+      setAudioFilesUrl(response.data);
+    } catch (error) {
+      console.log(error);
     }
   };
+
+  useEffect(() => {
+    getAudios();
+  }, []);
 
   return (
     <div className="App">
@@ -59,11 +100,13 @@ function App() {
         type="file"
         accept="audio/*"
         multiple
-        onChange={handleFileUpload}
+        onChange={changeAudioHandler}
       />
-      {audioFiles.length > 0 && (
+      <button onClick={handleFileUpload}>Submit</button>
+      {audioFilesUrl.length > 0 && (
         <div className="table-container">
           <h2>Uploaded Files:</h2>
+
           <table>
             <thead>
               <tr>
@@ -74,13 +117,16 @@ function App() {
               </tr>
             </thead>
             <tbody>
-              {audioFiles.map((file, index) => (
+              {audioFilesUrl.map((file, index) => (
                 <tr key={index}>
-                  <td>{file.name}</td>
-                  <td>{file.type}</td>
+                  <td>{file.originalName}</td>
+                  <td>{file.mimeType}</td>
                   <td>{(file.size / 1024).toFixed(2)} KB</td>
                   <td>
-                    <button onClick={() => handlePlay(file)}>Play</button>
+                    <audio ref={audioRef} src={file.url} />
+                    <button onClick={() => handlePlay(file)}>
+                      {activeAudioUrl === file.url ? "Pause" : "Play"}
+                    </button>
                     <button onClick={handleStop}>Stop</button>
                   </td>
                 </tr>
